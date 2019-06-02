@@ -48,11 +48,11 @@ export function ContextMiddlewareBuilder<Ctx extends ContextObject>({
         await beforeHook({ invocationId, userId });
       }
 
-      await next();
-
-      if (afterHook) {
+      res.on('finish', async () => {
         await afterHook(Context.all());
-      }
+      });
+
+      await next();
     });
   };
 }
