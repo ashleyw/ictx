@@ -1,3 +1,5 @@
+import { IncomingMessage, OutgoingMessage } from 'http';
+
 import cuid from 'cuid';
 
 import Context, { AfterHook, BeforeHook, ContextObject } from './Context';
@@ -32,13 +34,13 @@ export function ContextMiddlewareBuilder<Ctx extends ContextObject>({
   beforeHook,
   afterHook,
 }: { initialValues?: Ctx; beforeHook?: BeforeHook; afterHook?: AfterHook<Ctx> } = {}) {
-  return function ContextMiddleware(req, res, next): Promise<void> {
+  return function ContextMiddleware(req: IncomingMessage, res: OutgoingMessage, next: any): void {
     namespace.bindEmitter(req);
     namespace.bindEmitter(res);
 
     let { invocationId, userId } = initialValues;
 
-    return namespace.runAndReturn(async () => {
+    namespace.run(async () => {
       invocationId = pluckInvocationId({ req, res, initialValue: invocationId });
       userId = pluckCurrentUserId({ req, initialValue: userId });
 
@@ -48,9 +50,9 @@ export function ContextMiddlewareBuilder<Ctx extends ContextObject>({
         await beforeHook({ invocationId, userId });
       }
 
-      res.on('finish', async () => {
-        await afterHook(Context.all());
-      });
+      if (afterHook) {
+        res.on('finish', () => afterHook(Context.all()));
+      }
 
       await next();
     });

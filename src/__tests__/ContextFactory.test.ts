@@ -1,8 +1,9 @@
 import { omit } from 'lodash';
 import sinon from 'sinon';
 
-import { requestBuilder, test } from './helpers/test-utils';
-import { ContextFactory } from '.';
+import { requestBuilder } from './utils/builders';
+import { test } from './utils/test';
+import { ContextFactory } from '..';
 
 test('can set initial values', async t => {
   const initialValues = {
@@ -168,23 +169,35 @@ test('calls beforeHook w/ generated invocationId', async t => {
   t.deepEqual(beforeHook.getCall(1).args[0].invocationId.length, 25);
 });
 
-test('calls afterHook w/ full context', async t => {
+test('calls afterHook w/ full context (middleware)', async t => {
+  t.plan(4);
+
   const afterHook = sinon.fake();
 
   const Context = ContextFactory({ initialValues: { name: 'ash' }, afterHook });
 
-  const { req, res } = requestBuilder();
+  const { req, res } = requestBuilder({ userId: 123 });
 
-  await Context.Middleware(req, res, async () => {});
+  Context.Middleware(req, res, () => {
+    t.is(Context.userId(), 123);
+    res.end();
+  });
+
+  t.is(afterHook.callCount, 1);
+  t.deepEqual(omit(afterHook.getCall(0).args[0], ['invocationId']), { userId: 123, name: 'ash' });
+  t.deepEqual(afterHook.getCall(0).args[0].invocationId.length, 25);
+});
+
+test('calls afterHook w/ full context (provider)', async t => {
+  const afterHook = sinon.fake();
+
+  const Context = ContextFactory({ initialValues: { name: 'ash' }, afterHook });
+
   await Context.Provider(async () => {});
 
-  t.is(afterHook.callCount, 2);
-
-  t.deepEqual(omit(afterHook.getCall(0).args[0], ['invocationId']), { userId: null, name: 'ash' });
-  t.deepEqual(omit(afterHook.getCall(1).args[0], ['invocationId']), { name: 'ash' });
-
+  t.is(afterHook.callCount, 1);
+  t.deepEqual(omit(afterHook.getCall(0).args[0], ['invocationId']), { name: 'ash' });
   t.deepEqual(afterHook.getCall(0).args[0].invocationId.length, 25);
-  t.deepEqual(afterHook.getCall(1).args[0].invocationId.length, 25);
 });
 
 [null, 'abc', 123, undefined].forEach(value => {
@@ -253,5 +266,80 @@ test('override invocationId type', async t => {
     const result = Context.invocationId();
     t.is(result, 123);
     t.truthy(Number.isInteger(result));
+  });
+});
+
+test('nested contexts', async t => {
+  const Context = ContextFactory();
+
+  await Context.Provider(async () => {
+    Context.set('a', 1);
+    Context.set('b', 2);
+
+    await Context.Provider(async () => {
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2 });
+
+      Context.set('a', -1);
+      Context.set('c', 3);
+
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+
+      await Context.Provider(async () => {
+        t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+
+        Context.set('a', 10);
+        Context.set('e', 20);
+
+        t.deepEqual(omit(Context.all(), ['invocationId']), { a: 10, b: 2, c: 3, e: 20 });
+
+        const _ContextA = ContextFactory<{ type: string }>({
+          initialValues: { type: 'nestedMiddlware' },
+        });
+
+        const { req, res } = requestBuilder({ userId: 'nested-userId' });
+
+        _ContextA.Middleware(req, res, () => {
+          t.is(_ContextA.type(), 'nestedMiddlware');
+          t.deepEqual(omit(Context.all(), ['invocationId']), {
+            a: 10,
+            b: 2,
+            c: 3,
+            e: 20,
+            type: 'nestedMiddlware',
+            userId: 'nested-userId',
+          });
+
+          const _ContextB = ContextFactory<{ type: string }>({
+            initialValues: { type: 'doubleNestedMiddlware' },
+          });
+
+          _ContextB.Provider(() => {
+            t.is(_ContextB.type(), 'doubleNestedMiddlware');
+            // @ts-ignore
+            _ContextB.set('hello', true);
+            // @ts-ignore
+            // Context.set('valueSetOnRootContext', 'should-persist?');
+            t.deepEqual(omit(Context.all(), ['invocationId']), {
+              a: 10,
+              b: 2,
+              c: 3,
+              e: 20,
+              type: 'doubleNestedMiddlware',
+              userId: 'nested-userId',
+              hello: true,
+              // valueSetOnRootContext: 'should-persist?',
+            });
+          });
+        });
+      });
+
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+    });
+
+    Context.set('d', 4);
+
+    // t.is(Context.get('valueSetOnRootContext'), 'should-persist?');
+
+    t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2, d: 4 });
   });
 });

@@ -1,5 +1,6 @@
-import { requestBuilder, test } from './helpers/test-utils';
-import Context from '.';
+import { requestBuilder } from './utils/builders';
+import { test } from './utils/test';
+import Context from '..';
 
 test('pluck x-user-id header', async t => {
   const userId = 'abc';

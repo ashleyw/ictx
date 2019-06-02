@@ -1,0 +1,84 @@
+{
+  "name": "ictx",
+  "version": "0.0.1",
+  "description": "Invocation Context. Globally maintain context throughout a request lifecycle.",
+  "keywords": ["context", "current-user", "invocation-id", "request-id", "shared", "threading"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ashleyw/ictx.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Ashley Williams",
+    "email": "hi@ashleyw.co.uk"
+  },
+  "files": ["build"],
+  "main": "./build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "yarn lint:check",
+    "lint:check": "$(yarn bin eslint) --ext .ts,.tsx .",
+    "lint:fix": "$(yarn bin eslint) --fix --ext .ts,.tsx .",
+    "prepublishOnly": "yarn build",
+    "test": "nyc ava"
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "commitlint": {
+    "extends": ["@commitlint/config-conventional"]
+  },
+  "dependencies": {
+    "@ashleyw/cls-hooked": "~5.0.1",
+    "cuid": "^2.1.6",
+    "lodash": "~4.17.11",
+    "tslib": "^1.9.3"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "*",
+    "@commitlint/config-conventional": "*",
+    "@commitlint/config-lerna-scopes": "*",
+    "@types/cls-hooked": "^4.3.0",
+    "@types/lodash": "^4.14.134",
+    "@types/node": "^8.10.49",
+    "@types/sinon": "~7.0.11",
+    "@typescript-eslint/eslint-plugin": "*",
+    "@typescript-eslint/parser": "*",
+    "ava": "~1.4.1",
+    "eslint": "*",
+    "eslint-config-prettier": "*",
+    "eslint-plugin-import": "*",
+    "eslint-plugin-prettier": "*",
+    "eslint-plugin-standard": "*",
+    "eslint-plugin-unicorn": "*",
+    "express": "~4.17.1",
+    "husky": "*",
+    "node-mocks-http": "~1.7.5",
+    "nyc": "~14.1.1",
+    "prettier": "*",
+    "sinon": "~7.3.2",
+    "ts-node": "~8.1.1",
+    "typescript": "~3.5.1"
+  },
+  "engines": {
+    "node": ">=8.2.1"
+  },
+  "ava": {
+    "verbose": true,
+    "compileEnhancements": false,
+    "extensions": ["ts"],
+    "require": ["ts-node/register"],
+    "files": ["src/**/__tests__/*.test.ts"]
+  },
+  "nyc": {
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/**/__tests__/*.test.ts"],
+    "extension": [".ts"],
+    "reporter": ["text", "text-summary", "html"],
+    "all": true,
+    "recursive": true,
+    "cache": true
+  }
+}

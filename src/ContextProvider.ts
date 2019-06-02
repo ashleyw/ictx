@@ -3,21 +3,17 @@ import cuid from 'cuid';
 import Context, { AfterHook, BeforeHook, ContextObject } from './Context';
 import { namespace } from './helpers/namespace';
 
-type ResolveFn = (resolve: () => void) => void;
-type PromiseFn = () => Promise<void>;
-type CallbackFn = ResolveFn | PromiseFn;
-
-export type ProviderCallbackFn = CallbackFn;
+type ResolveFn<T> = (resolve?: (result?: T) => void) => T | Promise<T> | void;
 
 export function ContextProviderBuilder<Ctx extends ContextObject>({
   initialValues,
   beforeHook,
   afterHook,
 }: { initialValues?: Ctx; beforeHook?: BeforeHook; afterHook?: AfterHook<Ctx> } = {}) {
-  return async function ContextProvider(
-    initialValuesOrCallback: Ctx | CallbackFn,
-    callback?: CallbackFn,
-  ): Promise<void> {
+  return async function ContextProvider<T extends any>(
+    initialValuesOrCallback: Ctx | ResolveFn<T>,
+    callback?: ResolveFn<T>,
+  ): Promise<T> {
     let values: Ctx;
 
     if (typeof initialValuesOrCallback === 'object') {
@@ -41,23 +37,24 @@ export function ContextProviderBuilder<Ctx extends ContextObject>({
         Context.set(values);
       }
 
-      // Create promise in order to pass resolver to callback
-      await new Promise(async (resolveCb: () => void, reject: (error: any) => void) => {
+      const result = await new Promise<T>(async (resolve: (value?: T | PromiseLike<T>) => void, reject) => {
         try {
-          await callback(resolveCb);
+          const callbackResult = await callback(resolve);
+
+          // if our callback doesn't accept the resolve function, resolve manually
+          if (callback.length === 0) {
+            return resolve(callbackResult || undefined);
+          }
         } catch (error) {
           reject(error);
-        }
-
-        // If our our callback is not async, we shouldn't wait for resolveCb
-        if (callback.constructor.name === 'AsyncFunction') {
-          resolveCb();
         }
       });
 
       if (afterHook) {
         afterHook(Context.all());
       }
+
+      return result;
     });
   };
 }

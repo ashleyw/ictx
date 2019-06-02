@@ -1,8 +1,8 @@
 import { omit } from 'lodash';
 import sinon from 'sinon';
 
-import { test } from './helpers/test-utils';
-import Context, { ContextFactory } from '.';
+import { test } from './utils/test';
+import Context, { ContextFactory } from '..';
 
 test('get value', async t => {
   const day = 'friday';
@@ -96,7 +96,7 @@ test('set context within setTimeout', async t => {
       setTimeout(() => {
         Context.set(key, val);
         resolve();
-      }, 500);
+      }, 100);
     }).then(() => {
       t.is(Context.get(key), val);
     });
@@ -107,37 +107,6 @@ test('Context.Provider w/o initial values', async t => {
   await Context.Provider(async () => {
     Context.set('user', 'abc');
     t.is(Context.get('user'), 'abc');
-  });
-});
-
-test('nested contexts', async t => {
-  await Context.Provider(async () => {
-    Context.set('a', 1);
-    Context.set('b', 2);
-
-    await Context.Provider(async () => {
-      t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2 });
-
-      Context.set('a', -1);
-      Context.set('c', 3);
-
-      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
-
-      await Context.Provider(async () => {
-        t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
-
-        Context.set('a', 10);
-        Context.set('e', 20);
-
-        t.deepEqual(omit(Context.all(), ['invocationId']), { a: 10, b: 2, c: 3, e: 20 });
-      });
-
-      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
-    });
-
-    Context.set('d', 4);
-
-    t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2, d: 4 });
   });
 });
 
@@ -153,7 +122,7 @@ test('calls hooks', async t => {
 
   const invocationId = 'def';
 
-  const Context = ContextFactory<{ invocationId: string }>({
+  const { Provider } = ContextFactory<{ invocationId: string }>({
     initialValues: { invocationId: null },
     beforeHook,
     afterHook,
@@ -161,9 +130,8 @@ test('calls hooks', async t => {
 
   let afterValues = {};
 
-  await Context.Provider({ invocationId }, async () => {
+  await Provider({ invocationId }, async () => {
     t.is(Context.get('invocationId'), invocationId);
-
     afterValues = Context.all();
   });
 
@@ -177,12 +145,12 @@ test('calls hooks', async t => {
 test('calls beforeHook w/ generated invocationId', async t => {
   const beforeHook = sinon.fake();
 
-  const Context = ContextFactory<{ invocationId: string }>({
+  const { Provider } = ContextFactory<{ invocationId: string }>({
     initialValues: { invocationId: null },
     beforeHook,
   });
 
-  Context.Provider(() => {
+  Provider(() => {
     t.truthy(Context.has('invocationId'));
   });
 
@@ -199,4 +167,74 @@ test('can throw error', async t => {
   });
 
   t.is(error.message, 'abc');
+});
+
+test('retuns value (async)', async t => {
+  const result = await Context.Provider({ cool: true }, async () => {
+    return new Promise(resolve => setTimeout(() => resolve(123), 100));
+  });
+
+  t.is(result, 123);
+});
+
+test('retuns value (async, resolve)', async t => {
+  const result = await Context.Provider<number>(async resolve => {
+    setTimeout(() => resolve(123), 100);
+
+    // result should not be 666
+    return 666;
+  });
+
+  t.is(result, 123);
+});
+
+test('retuns value (sync)', async t => {
+  const result = await Context.Provider(() => {
+    return 'abc';
+  });
+
+  t.is(result, 'abc');
+});
+
+test('retuns value (resolve fn)', async t => {
+  const result = await Context.Provider(resolve => {
+    resolve(123);
+  });
+
+  t.is(result, 123);
+});
+
+test('retuns value (resolve fn, w/ initial values)', async t => {
+  const result = await Context.Provider<number>({ cool: true }, resolve => {
+    t.is(Context.get('cool'), true);
+    resolve(123);
+  });
+
+  t.is(result, 123);
+});
+
+test('retuns value (sync, w/ initial values)', async t => {
+  const result = await Context.Provider<number>({ cool: true }, () => {
+    t.is(Context.get('cool'), true);
+    return 123;
+  });
+
+  t.is(result, 123);
+});
+
+test('retuns value (async, w/ initial values)', async t => {
+  const result = await Context.Provider<number>({ cool: true }, async () => {
+    t.is(Context.get('cool'), true);
+    return new Promise<number>(resolve => setTimeout(() => resolve(123), 100));
+  });
+
+  t.is(result, 123);
+});
+
+test('can catch', async t => {
+  await Context.Provider(() => {
+    throw new Error('abc');
+  })
+    .then(() => t.fail('provider should throw'))
+    .catch(() => t.pass());
 });

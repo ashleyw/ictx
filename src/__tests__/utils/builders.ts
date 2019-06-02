@@ -1,7 +1,6 @@
-import anyTest, { TestInterface } from 'ava';
-import httpMocks from 'node-mocks-http';
+import { IncomingMessage, OutgoingMessage } from 'http';
 
-export const test = anyTest as TestInterface<{}>;
+import httpMocks from 'node-mocks-http';
 
 export function reqBuilder({
   userId,
@@ -12,7 +11,7 @@ export function reqBuilder({
   invocationId?: string;
   requestId?: string;
 } = {}) {
-  return httpMocks.createRequest({
+  return httpMocks.createRequest<IncomingMessage>({
     headers: {
       ...(userId ? { 'x-user-id': userId } : {}),
       ...(invocationId ? { 'x-invocation-id': invocationId } : {}),
@@ -22,7 +21,7 @@ export function reqBuilder({
 }
 
 export function resBuilder() {
-  return httpMocks.createResponse();
+  return httpMocks.createResponse<OutgoingMessage>({ eventEmitter: require('events').EventEmitter });
 }
 
 export function requestBuilder(...args: Parameters<typeof reqBuilder>) {

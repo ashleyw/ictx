@@ -1,5 +1,3 @@
-import { omit } from 'lodash';
-
 import { ContextObject } from './Context';
 import { namespace } from './helpers/namespace';
 
@@ -31,5 +29,7 @@ export function deleteContextValue(key: string): void {
 }
 
 export function getAllContextValues<T extends ContextObject>(): T {
-  return omit(namespace.active, ['_ns_name', 'id'])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { _ns_name, id, ...values } = namespace.active;
+  return Object.assign({}, values);
 }

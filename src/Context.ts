@@ -13,20 +13,27 @@ import {
 
 export type ContextObject = { [key: string]: any };
 export type BeforeHook = (context: { invocationId: string; userId?: any }) => Promise<void>;
-export type AfterHook<Ctx> = (context: Ctx) => Promise<void>;
+export type AfterHook<Ctx> = (context: Ctx) => void;
 export type CustomMethod<C extends ContextObject, K extends keyof C> = (value?: C[K]) => C[K];
 
 export function ContextFactory<Ctx extends ContextObject>({
   initialValues,
   beforeHook,
   afterHook,
+  namespace = '',
 }: {
   initialValues?: Ctx;
   beforeHook?: BeforeHook;
   afterHook?: AfterHook<Ctx>;
+  namespace?: string;
 } = {}) {
   type Context = Ctx & Omit<{ invocationId: string; userId: any }, keyof Ctx>;
-  const Middleware = ContextMiddlewareBuilder<Ctx>({ initialValues, beforeHook, afterHook });
+
+  const Middleware = ContextMiddlewareBuilder<Ctx>({
+    initialValues,
+    beforeHook,
+    afterHook,
+  });
   const Provider = ContextProviderBuilder<Ctx>({ initialValues, beforeHook, afterHook });
 
   const properties = uniq([...Object.keys(initialValues || {}), 'invocationId', 'userId']);
@@ -69,6 +76,7 @@ export function ContextFactory<Ctx extends ContextObject>({
   };
 }
 
+// eslint-disable-next-line import/no-default-export
 export default {
   Provider: ContextProviderBuilder(),
   Middleware: ContextMiddlewareBuilder(),
