@@ -1,4 +1,6 @@
-import Context, { ContextObject, OnCompleteCallback } from './Context';
+import cuid from 'cuid';
+
+import Context, { AfterHook, BeforeHook, ContextObject } from './Context';
 import { namespace } from './helpers/namespace';
 
 type ResolveFn = (resolve: () => void) => void;
@@ -9,9 +11,10 @@ export type ProviderCallbackFn = CallbackFn;
 
 export function ContextProviderBuilder<Ctx extends ContextObject>({
   initialValues,
-  onComplete,
-}: { initialValues?: Ctx; onComplete?: OnCompleteCallback } = {}) {
-  return function ContextProvider(
+  beforeHook,
+  afterHook,
+}: { initialValues?: Ctx; beforeHook?: BeforeHook; afterHook?: AfterHook<Ctx> } = {}) {
+  return async function ContextProvider(
     initialValuesOrCallback: Ctx | CallbackFn,
     callback?: CallbackFn,
   ): Promise<void> {
@@ -28,9 +31,16 @@ export function ContextProviderBuilder<Ctx extends ContextObject>({
     }
 
     return namespace.runAndReturn(async () => {
-      if (values) {
-        Context.set(values);
+      const invocationId = Context.get<string>('invocationId') || Context.set('invocationId', cuid());
+
+      if (beforeHook) {
+        await beforeHook({ invocationId });
       }
+
+      await new Promise(async (resolveCb: () => void) => {
+        if (values) {
+          Context.set(values);
+        }
 
       await new Promise(async (resolveCb: () => void) => {
         await callback(resolveCb);
@@ -41,8 +51,8 @@ export function ContextProviderBuilder<Ctx extends ContextObject>({
         }
       });
 
-      if (!!onComplete) {
-        onComplete(Context.all());
+      if (afterHook) {
+        afterHook(Context.all());
       }
     });
   };

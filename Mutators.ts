@@ -3,17 +3,19 @@ import { omit } from 'lodash';
 import { ContextObject } from './Context';
 import { namespace } from './helpers/namespace';
 
-export function setContextValue<K, V>(key: string, value: any): V;
-export function setContextValue<V>(values: ContextObject): V;
+export function setContextValue<K, V>(key: string, value: V): V;
+export function setContextValue<V extends ContextObject>(values: V): V;
 export function setContextValue(keyOrValues: string | ContextObject, value?: any) {
   if (typeof keyOrValues === 'string') {
     namespace.set(keyOrValues, value);
+    return value;
   } else {
     Object.entries(keyOrValues).forEach(([key, val]) => {
       setContextValue(key, val);
     });
+
+    return keyOrValues;
   }
-  return value;
 }
 
 export function getContextValue<T>(key: string): T {

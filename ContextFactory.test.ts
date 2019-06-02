@@ -1,18 +1,19 @@
-import { ContextFactory } from './Context';
-import { test } from './helpers/test-utils';
+import { omit } from 'lodash';
+import sinon from 'sinon';
+
+import { requestBuilder, test } from './helpers/test-utils';
+import { ContextFactory } from '.';
 
 test('can set initial values', async t => {
-  type Ctx = {
-    userId: number;
-    username: string;
-  };
-
   const initialValues = {
     userId: 123,
     username: 'ashleyw',
   };
 
-  const Context = ContextFactory<Ctx>({ initialValues });
+  const Context = ContextFactory<{
+    userId: number;
+    username: string;
+  }>({ initialValues });
 
   Context.Provider(() => {
     t.is(Context.userId(), initialValues.userId);
@@ -21,62 +22,207 @@ test('can set initial values', async t => {
   });
 });
 
-test('get invocationId', async t => {
+test('set multiple properties', async t => {
   const invocationId = 'abc';
+  const userId = 123;
+  const initialValues = { invocationId, userId };
 
-  const Context = ContextFactory<{ invocationId: string }>({ initialValues: { invocationId } });
+  const Context = ContextFactory<typeof initialValues>({ initialValues });
 
   await Context.Provider(async () => {
+    const newValues = { invocationId: 'def', userId: 333 };
+
+    t.is(Context.set(newValues), newValues);
+    t.is(Context.set({ invocationId: 'def', userId: 123 }), newValues);
+    t.is(Context.set({ invocationId: 'def' }), newValues);
+
+    t.is(Context.invocationId(), newValues.invocationId);
+    t.is(Context.userId(), newValues.userId);
+  });
+});
+
+test('should overwrite initial userId value w/ header', async t => {
+  const Context = ContextFactory({ initialValues: { userId: 'abc' } });
+
+  const userId = 'def';
+  const { req, res } = requestBuilder({ userId });
+
+  Context.Middleware(req, res, () => {
+    t.is(Context.get<string>('userId'), userId);
+    t.is(Context.userId(), userId);
+  });
+});
+
+test('should NOT overwrite initial userId value if no header', async t => {
+  const userId = 'abc';
+  const Context = ContextFactory({ initialValues: { userId } });
+
+  const { req, res } = requestBuilder();
+
+  Context.Middleware(req, res, () => {
+    t.is(Context.get('userId'), userId);
+    t.is(Context.userId(), userId);
+  });
+});
+
+test('should overwrite initial invocationId value w/ header', async t => {
+  const Context = ContextFactory({ initialValues: { invocationId: 'abc' } });
+
+  const invocationId = 'def';
+  const { req, res } = requestBuilder({ invocationId });
+
+  Context.Middleware(req, res, () => {
+    t.is(Context.get('invocationId'), invocationId);
     t.is(Context.invocationId(), invocationId);
   });
 });
 
-test('set invocationId', async t => {
+test('should NOT overwrite initial invocationId value if no header', async t => {
   const invocationId = 'abc';
-  const nextVal = 'def';
+  const Context = ContextFactory({ initialValues: { invocationId } });
 
-  const Context = ContextFactory<{ invocationId: string }>({ initialValues: { invocationId } });
-  await Context.Provider(async () => {
-    t.is(Context.invocationId(), invocationId, 'should be initial value');
-    t.is(Context.invocationId(nextVal), nextVal, 'should be new value');
-  });
-});
+  const { req, res } = requestBuilder();
 
-test('set value', async t => {
-  const name = 'abc';
-  const nextVal = 'def';
-
-  const Context = ContextFactory<{ name: string }>({ initialValues: { name } });
-
-  await Context.Provider(async () => {
-    t.is(Context.get('name'), name);
-    Context.set('name', nextVal);
-    t.is(Context.get('name'), nextVal);
+  Context.Middleware(req, res, () => {
+    t.is(Context.get('invocationId'), invocationId);
+    t.is(Context.invocationId(), invocationId);
   });
 });
 
 test('delete value', async t => {
-  const name = 'abc';
-
-  const Context = ContextFactory<{ name: string }>({ initialValues: { name } });
+  const invocationId = 'abc';
+  const Context = ContextFactory({ initialValues: { invocationId } });
 
   await Context.Provider(async () => {
-    t.is(Context.get('name'), name);
-    Context.delete('name');
-    t.falsy(Context.has('name'));
-    t.is(Context.get('name'), undefined);
+    t.is(Context.get('invocationId'), invocationId);
+
+    Context.delete('invocationId');
+
+    t.is(Context.get('invocationId'), undefined);
   });
 });
 
-test('multiple properties', async t => {
-  const invocationId = 'abc';
-  const userId = '123';
+test('custom method', async t => {
+  const values = {
+    duck: 'abc',
+    rabbit: 123,
+    fox: new Date(),
+    bird: true,
+    bug: { any: 1, key: '2' },
+    bear: { any: '1', key: 2 },
+  };
 
-  const Context = ContextFactory<{ invocationId: string; userId: string }>({
-    initialValues: { invocationId, userId },
+  const Context = ContextFactory<{
+    duck: string;
+    rabbit: number;
+    fox: Date;
+    bird: boolean;
+    bug: any;
+    bear: { any: string; key: number };
+  }>({
+    initialValues: values,
   });
-  await Context.Provider(async () => {
-    t.is(Context.invocationId(), invocationId);
-    t.is(Context.userId(), userId);
+
+  const { req, res } = requestBuilder();
+
+  Context.Middleware(req, res, () => {
+    t.is(Context.duck(), values.duck);
+    t.is(typeof Context.duck(), typeof values.duck);
+    t.is(Context.duck('quack'), Context.duck());
+
+    t.is(Context.rabbit(), values.rabbit);
+    t.is(typeof Context.rabbit(), typeof values.rabbit);
+    t.is(Context.rabbit(999), Context.rabbit());
+
+    t.is(Context.fox(), values.fox);
+    t.is(typeof Context.fox(), typeof values.fox);
+    t.is(Context.fox(new Date(1991, 1, 1)), Context.fox());
+
+    t.is(Context.bird(), values.bird);
+    t.is(typeof Context.bird(), typeof values.bird);
+    t.is(Context.bird(false), Context.bird());
+
+    t.is(Context.bug(), values.bug);
+    t.is(typeof Context.bug(), typeof values.bug);
+    t.is(Context.bug([1, 2, 3]), Context.bug());
+
+    t.is(Context.bear(), values.bear);
+    t.is(typeof Context.bear(), typeof values.bear);
+    t.is(Context.bear({ any: '2', key: 1 }), Context.bear());
+  });
+});
+
+test('calls beforeHook w/ generated invocationId', async t => {
+  const beforeHook = sinon.fake();
+
+  const Context = ContextFactory({ beforeHook });
+
+  const { req, res } = requestBuilder();
+
+  await Context.Middleware(req, res, async () => {});
+  await Context.Provider(async () => {});
+
+  t.is(beforeHook.callCount, 2);
+  t.deepEqual(Object.keys(beforeHook.getCall(0).args[0]), ['invocationId', 'userId']);
+  t.deepEqual(Object.keys(beforeHook.getCall(1).args[0]), ['invocationId']);
+  t.deepEqual(beforeHook.getCall(0).args[0].invocationId.length, 25);
+  t.deepEqual(beforeHook.getCall(1).args[0].invocationId.length, 25);
+});
+
+test('calls afterHook w/ full context', async t => {
+  const afterHook = sinon.fake();
+
+  const Context = ContextFactory({ initialValues: { name: 'ash' }, afterHook });
+
+  const { req, res } = requestBuilder();
+
+  await Context.Middleware(req, res, async () => {});
+  await Context.Provider(async () => {});
+
+  t.is(afterHook.callCount, 2);
+
+  t.deepEqual(omit(afterHook.getCall(0).args[0], ['invocationId']), { userId: null, name: 'ash' });
+  t.deepEqual(omit(afterHook.getCall(1).args[0], ['invocationId']), { userId: null, name: 'ash' });
+
+  t.deepEqual(afterHook.getCall(0).args[0].invocationId.length, 25);
+  t.deepEqual(afterHook.getCall(1).args[0].invocationId.length, 25);
+});
+
+[null, 'abc', 123, undefined].forEach(value => {
+  test(`invocationId, initialValue = ${JSON.stringify(value)}`, async t => {
+    const Context = ContextFactory({ initialValues: { invocationId: value } });
+
+    const { req, res } = requestBuilder();
+
+    await Context.Middleware(req, res, async () => {
+      if (!!value) {
+        t.truthy(value);
+        t.is(Context.invocationId(), value);
+      } else {
+        t.is(Context.invocationId().length, 25);
+      }
+    });
+  });
+});
+
+[[null, null], ['abc', 'abc'], [123, 123], ['1234', 1234]].forEach(([userId, expected]) => {
+  test.only(`userId, initialValue = ${JSON.stringify(userId)}`, async t => {
+    t.plan(2);
+
+    const Context = ContextFactory({ initialValues: { userId } });
+
+    const { req, res } = requestBuilder();
+
+    await Context.Middleware(req, res, async () => {
+      t.is(Context.userId(), expected);
+    });
+
+    await Context.Provider({ userId }, async () => {
+      if (userId === +userId) {
+        t.is(Context.userId(), expected);
+      } else {
+        t.is(Context.userId(), userId);
+      }
+    });
   });
 });

@@ -1,48 +1,57 @@
 import cuid from 'cuid';
 
-import Context, { ContextObject, OnCompleteCallback } from './Context';
+import Context, { AfterHook, BeforeHook, ContextObject } from './Context';
 import { namespace } from './helpers/namespace';
 
-function setupInvocationId({ req, res }: { req?: any; res?: any }): void {
-  const headerValue = req.headers['x-invocation-id'] || req.headers['x-request-id'];
-  const invocationId = headerValue || cuid();
+function pluckInvocationId({ req, res, initialValue }: { req?: any; res?: any; initialValue?: string }) {
+  const header = req.headers['x-invocation-id'] || req.headers['x-request-id'];
+  const invocationId = header || initialValue || cuid();
 
-  if (!headerValue) {
+  if (!header) {
     req.headers['x-invocation-id'] = invocationId;
     res.setHeader('x-invocation-id', invocationId);
   }
 
-  namespace.set('invocationId', invocationId);
+  return invocationId;
 }
 
-function setupCurrentUserId({ req }: { req?: any }): void {
-  const userId = req.headers['x-user-id'];
+function pluckCurrentUserId({ req, initialValue }: { req?: any; initialValue?: any }) {
+  let userId = req.headers['x-user-id'] || initialValue || null;
 
-  if (userId) {
-    namespace.set('userId', userId);
+  // Check if we can cast to an integer
+  const numberCast = parseInt(userId, 10);
+  if (userId === numberCast.toString()) {
+    userId = numberCast;
   }
+
+  return userId;
 }
 
-export function ContextMiddlewareBuilder({
-  initialValues,
-  onComplete,
-}: { initialValues?: ContextObject; onComplete?: OnCompleteCallback } = {}) {
-  return function ContextMiddleware(req, res, next) {
+export function ContextMiddlewareBuilder<Ctx extends ContextObject>({
+  initialValues = {} as Ctx,
+  beforeHook,
+  afterHook,
+}: { initialValues?: Ctx; beforeHook?: BeforeHook; afterHook?: AfterHook<Ctx> } = {}) {
+  return function ContextMiddleware(req, res, next): Promise<void> {
     namespace.bindEmitter(req);
     namespace.bindEmitter(res);
 
-    return namespace.run(async () => {
-      if (initialValues) {
-        Context.set(initialValues);
+    let { invocationId, userId } = initialValues;
+
+    return namespace.runPromise(async () => {
+      invocationId = pluckInvocationId({ req, res, initialValue: invocationId });
+      userId = pluckCurrentUserId({ req, initialValue: userId });
+
+      Context.set({ ...initialValues, invocationId, userId });
+
+      if (beforeHook) {
+        await beforeHook({ invocationId, userId });
       }
 
-      setupInvocationId({ req, res });
-      setupCurrentUserId({ req });
+      await next();
 
-      next();
-
-      if (!!onComplete) {
-        onComplete(Context.all());
+      if (afterHook) {
+        await afterHook(Context.all());
       }
     });
   };

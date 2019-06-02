@@ -1,6 +1,5 @@
 import Context from './Context';
-import { test } from './helpers/test-utils';
-import { requestBuilder } from './utils/builders';
+import { requestBuilder, test } from './helpers/test-utils';
 
 test('get invocationId', async t => {
   await Context.Provider(async () => {

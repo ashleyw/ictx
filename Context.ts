@@ -1,3 +1,5 @@
+import { uniq } from 'lodash';
+
 import { ContextMiddlewareBuilder } from './ContextMiddleware';
 import { ContextProviderBuilder } from './ContextProvider';
 import { contextValueFactory } from './helpers/contextValueFactory';
@@ -10,44 +12,58 @@ import {
 } from './Mutators';
 
 export type ContextObject = { [key: string]: any };
-export type OnCompleteCallback = ({ invocationId }: { invocationId: string }) => void;
+export type BeforeHook = (context: { invocationId: string; userId?: any }) => Promise<void>;
+export type AfterHook<Ctx> = (context: Ctx) => Promise<void>;
+export type CustomMethod<C extends ContextObject, K extends keyof C> = (value?: C[K]) => C[K];
 
 export function ContextFactory<Ctx extends ContextObject>({
   initialValues,
-  onComplete,
+  beforeHook,
+  afterHook,
 }: {
-  initialValues: Ctx;
-  onComplete?: OnCompleteCallback;
-}) {
-  // Inject predefined getter/setter methods
-  const customMethods = Object.keys(initialValues).reduce(
-    (result, key) => {
-      return { ...result, [key]: contextValueFactory<any>(key) };
-    },
-    {} as { [K in keyof Ctx]: ReturnType<typeof contextValueFactory> },
-  );
+  initialValues?: Ctx;
+  beforeHook?: BeforeHook;
+  afterHook?: AfterHook<Ctx>;
+} = {}) {
+  type Context = { invocationId: string; userId: any } & Ctx;
+  const Middleware = ContextMiddlewareBuilder<Ctx>({ initialValues, beforeHook, afterHook });
+  const Provider = ContextProviderBuilder<Ctx>({ initialValues, beforeHook, afterHook });
 
-  const Middleware = ContextMiddlewareBuilder({ initialValues, onComplete });
-  const Provider = ContextProviderBuilder({ initialValues, onComplete });
+  const properties = uniq([...Object.keys(initialValues || {}), 'invocationId', 'userId']);
+
+  function setFactoryContextValue<V extends { [K in keyof V]: K extends keyof Context ? V[K] : never }>(values: V): V; // prettier-ignore
+  function setFactoryContextValue<K, V>(key: keyof Context, value: V): V;
+  function setFactoryContextValue(...args: any[]) {
+    // @ts-ignore
+    return setContextValue(...args);
+  }
 
   return {
-    ...customMethods,
+    // Define custom getter/setter methods for properties
+    ...properties.reduce((result, key) => ({ ...result, [key]: contextValueFactory(key) }), {} as {
+      [K in keyof Context]: CustomMethod<Context, K>
+    }),
 
+    // Providers
     Middleware,
     Provider,
-    get: function<T = any>(key: keyof Ctx): T {
+
+    // Mutators
+    set: setFactoryContextValue,
+
+    get<T = any>(key: keyof Context): T {
       return getContextValue(key as string);
     },
-    set: function(key: keyof Ctx, value: any) {
-      return setContextValue(key as string, value);
-    },
-    delete: function(key: keyof Ctx) {
+
+    delete(key: keyof Context) {
       return deleteContextValue(key as string);
     },
-    has: function(key: keyof Ctx) {
+
+    has(key: keyof Context) {
       return hasContextValue(key as string);
     },
-    all: function(): Ctx {
+
+    all(): Context {
       return getAllContextValues();
     },
   };
@@ -56,6 +72,8 @@ export function ContextFactory<Ctx extends ContextObject>({
 export default {
   Provider: ContextProviderBuilder(),
   Middleware: ContextMiddlewareBuilder(),
+  invocationId: contextValueFactory('invocationId'),
+  userId: contextValueFactory('userId', null),
   get: getContextValue,
   set: setContextValue,
   delete: deleteContextValue,

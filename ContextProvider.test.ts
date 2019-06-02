@@ -1,8 +1,8 @@
+import { omit } from 'lodash';
 import sinon from 'sinon';
 
-import { ContextFactory } from './Context';
 import { test } from './helpers/test-utils';
-import Context from '.';
+import Context, { ContextFactory } from '.';
 
 test('get value', async t => {
   const day = 'friday';
@@ -31,7 +31,7 @@ test('set multiple values', async t => {
 
   await Context.Provider(async () => {
     Context.set(values);
-    t.deepEqual(Context.all(), values);
+    t.deepEqual(omit(Context.all(), ['invocationId']), values);
   });
 });
 
@@ -40,12 +40,12 @@ test('delete value', async t => {
 
   await Context.Provider(async () => {
     Context.set('day', day);
-    t.deepEqual(Context.all(), { day });
+    t.deepEqual(omit(Context.all(), ['invocationId']), { day });
 
     Context.delete('day');
 
     t.is(Context.get('day'), undefined);
-    t.deepEqual(Context.all(), {});
+    t.deepEqual(omit(Context.all(), ['invocationId']), {});
   });
 });
 
@@ -71,9 +71,9 @@ test('Context.all()', async t => {
   const initialVals = { a: 1, b: 2, c: 3 };
 
   await Context.Provider(initialVals, async () => {
-    t.deepEqual(Context.all(), initialVals);
+    t.deepEqual(omit(Context.all(), ['invocationId']), initialVals);
     Context.set('d', 4);
-    t.deepEqual(Context.all(), { ...initialVals, d: 4 });
+    t.deepEqual(omit(Context.all(), ['invocationId']), { ...initialVals, d: 4 });
   });
 });
 
@@ -110,23 +110,83 @@ test('Context.Provider w/o initial values', async t => {
   });
 });
 
-test('calls onComplete', async t => {
-  const onComplete = sinon.fake();
+test('nested contexts', async t => {
+  await Context.Provider(async () => {
+    Context.set('a', 1);
+    Context.set('b', 2);
+
+    await Context.Provider(async () => {
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2 });
+
+      Context.set('a', -1);
+      Context.set('c', 3);
+
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+
+      await Context.Provider(async () => {
+        t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+
+        Context.set('a', 10);
+        Context.set('e', 20);
+
+        t.deepEqual(omit(Context.all(), ['invocationId']), { a: 10, b: 2, c: 3, e: 20 });
+      });
+
+      t.deepEqual(omit(Context.all(), ['invocationId']), { a: -1, b: 2, c: 3 });
+    });
+
+    Context.set('d', 4);
+
+    t.deepEqual(omit(Context.all(), ['invocationId']), { a: 1, b: 2, d: 4 });
+  });
+});
+
+test('userId defaults to null', async t => {
+  await Context.Provider(async () => {
+    t.is(Context.userId(), null);
+  });
+});
+
+test('calls hooks', async t => {
+  const beforeHook = sinon.fake();
+  const afterHook = sinon.fake();
+
   const invocationId = 'def';
 
   const Context = ContextFactory<{ invocationId: string }>({
     initialValues: { invocationId: null },
-    onComplete,
+    beforeHook,
+    afterHook,
   });
 
-  let allValues = {};
+  let afterValues = {};
 
   await Context.Provider({ invocationId }, async () => {
     t.is(Context.get('invocationId'), invocationId);
 
-    allValues = Context.all();
+    afterValues = Context.all();
   });
 
-  t.is(onComplete.callCount, 1);
-  t.deepEqual(onComplete.getCall(0).args[0], allValues);
+  t.is(beforeHook.callCount, 1);
+  t.deepEqual(Object.keys(beforeHook.getCall(0).args[0]), ['invocationId']);
+
+  t.is(afterHook.callCount, 1);
+  t.deepEqual(afterHook.getCall(0).args[0], afterValues);
+});
+
+test('calls beforeHook w/ generated invocationId', async t => {
+  const beforeHook = sinon.fake();
+
+  const Context = ContextFactory<{ invocationId: string }>({
+    initialValues: { invocationId: null },
+    beforeHook,
+  });
+
+  Context.Provider(() => {
+    t.truthy(Context.has('invocationId'));
+  });
+
+  t.is(beforeHook.callCount, 1);
+  t.deepEqual(Object.keys(beforeHook.getCall(0).args[0]), ['invocationId']);
+  t.deepEqual(beforeHook.getCall(0).args[0].invocationId.length, 25);
 });
