@@ -33,8 +33,7 @@ test('set multiple properties', async t => {
     const newValues = { invocationId: 'def', userId: 333 };
 
     t.is(Context.set(newValues), newValues);
-    t.is(Context.set({ invocationId: 'def', userId: 123 }), newValues);
-    t.is(Context.set({ invocationId: 'def' }), newValues);
+    t.is(Context.set({ invocationId: 'def' }), { invocationId: 'def' });
 
     t.is(Context.invocationId(), newValues.invocationId);
     t.is(Context.userId(), newValues.userId);
@@ -206,7 +205,7 @@ test('calls afterHook w/ full context', async t => {
 });
 
 [[null, null], ['abc', 'abc'], [123, 123], ['1234', 1234]].forEach(([userId, expected]) => {
-  test.only(`userId, initialValue = ${JSON.stringify(userId)}`, async t => {
+  test(`userId, initialValue = ${JSON.stringify(userId)}`, async t => {
     t.plan(2);
 
     const Context = ContextFactory({ initialValues: { userId } });
