@@ -25,7 +25,7 @@ export function ContextFactory<Ctx extends ContextObject>({
   beforeHook?: BeforeHook;
   afterHook?: AfterHook<Ctx>;
 } = {}) {
-  type Context = { invocationId: string; userId: any } & Ctx;
+  type Context = Ctx & Omit<{ invocationId: string; userId: any }, keyof Ctx>;
   const Middleware = ContextMiddlewareBuilder<Ctx>({ initialValues, beforeHook, afterHook });
   const Provider = ContextProviderBuilder<Ctx>({ initialValues, beforeHook, afterHook });
 

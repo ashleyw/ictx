@@ -198,7 +198,7 @@ test('calls afterHook w/ full context', async t => {
         t.truthy(value);
         t.is(Context.invocationId(), value);
       } else {
-        t.is(Context.invocationId().length, 25);
+        t.is(Context.invocationId().toString().length, 25);
       }
     });
   });
@@ -223,5 +223,35 @@ test('calls afterHook w/ full context', async t => {
         t.is(Context.userId(), userId);
       }
     });
+  });
+});
+
+test('override userId type', async t => {
+  const Context = ContextFactory<{ userId: number }>({ initialValues: { userId: 123 } });
+
+  Context.Provider(() => {
+    const result = Context.userId();
+    t.is(result, 123);
+    t.truthy(Number.isInteger(result));
+  });
+});
+
+test('invocationId is a string', async t => {
+  const Context = ContextFactory();
+
+  Context.Provider(() => {
+    const result = Context.invocationId();
+    t.truthy(typeof result === 'string');
+    t.is(result.length, 25);
+  });
+});
+
+test('override invocationId type', async t => {
+  const Context = ContextFactory<{ invocationId: number }>({ initialValues: { invocationId: 123 } });
+
+  Context.Provider(() => {
+    const result = Context.invocationId();
+    t.is(result, 123);
+    t.truthy(Number.isInteger(result));
   });
 });
