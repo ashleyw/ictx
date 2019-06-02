@@ -37,15 +37,19 @@ export function ContextProviderBuilder<Ctx extends ContextObject>({
         await beforeHook({ invocationId });
       }
 
-      await new Promise(async (resolveCb: () => void) => {
-        if (values) {
-          Context.set(values);
+      if (values) {
+        Context.set(values);
+      }
+
+      // Create promise in order to pass resolver to callback
+      await new Promise(async (resolveCb: () => void, reject: (error: any) => void) => {
+        try {
+          await callback(resolveCb);
+        } catch (error) {
+          reject(error);
         }
 
-      await new Promise(async (resolveCb: () => void) => {
-        await callback(resolveCb);
-
-        // If our our callback is not async, we shouldn't await resolveCb
+        // If our our callback is not async, we shouldn't wait for resolveCb
         if (callback.constructor.name === 'AsyncFunction') {
           resolveCb();
         }

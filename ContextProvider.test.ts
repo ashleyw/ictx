@@ -190,3 +190,13 @@ test('calls beforeHook w/ generated invocationId', async t => {
   t.deepEqual(Object.keys(beforeHook.getCall(0).args[0]), ['invocationId']);
   t.deepEqual(beforeHook.getCall(0).args[0].invocationId.length, 25);
 });
+
+test('can throw error', async t => {
+  const error = await t.throwsAsync(async () => {
+    await Context.Provider(() => {
+      throw new Error('abc');
+    });
+  });
+
+  t.is(error.message, 'abc');
+});
