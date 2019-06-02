@@ -32,8 +32,8 @@ test('set multiple properties', async t => {
   await Context.Provider(async () => {
     const newValues = { invocationId: 'def', userId: 333 };
 
-    t.is(Context.set(newValues), newValues);
-    t.is(Context.set({ invocationId: 'def' }), { invocationId: 'def' });
+    t.deepEqual(Context.set(newValues), newValues);
+    t.deepEqual(Context.set({ invocationId: 'def' }), { invocationId: 'def' });
 
     t.is(Context.invocationId(), newValues.invocationId);
     t.is(Context.userId(), newValues.userId);
@@ -89,15 +89,15 @@ test('should NOT overwrite initial invocationId value if no header', async t => 
 });
 
 test('delete value', async t => {
-  const invocationId = 'abc';
-  const Context = ContextFactory({ initialValues: { invocationId } });
+  const country = 'uk';
+  const Context = ContextFactory({ initialValues: { country } });
 
   await Context.Provider(async () => {
-    t.is(Context.get('invocationId'), invocationId);
+    t.is(Context.get('country'), country);
 
-    Context.delete('invocationId');
+    Context.delete('country');
 
-    t.is(Context.get('invocationId'), undefined);
+    t.is(Context.get('country'), undefined);
   });
 });
 
@@ -124,7 +124,7 @@ test('custom method', async t => {
 
   const { req, res } = requestBuilder();
 
-  Context.Middleware(req, res, () => {
+  Context.Middleware(req, res, async () => {
     t.is(Context.duck(), values.duck);
     t.is(typeof Context.duck(), typeof values.duck);
     t.is(Context.duck('quack'), Context.duck());
@@ -181,7 +181,7 @@ test('calls afterHook w/ full context', async t => {
   t.is(afterHook.callCount, 2);
 
   t.deepEqual(omit(afterHook.getCall(0).args[0], ['invocationId']), { userId: null, name: 'ash' });
-  t.deepEqual(omit(afterHook.getCall(1).args[0], ['invocationId']), { userId: null, name: 'ash' });
+  t.deepEqual(omit(afterHook.getCall(1).args[0], ['invocationId']), { name: 'ash' });
 
   t.deepEqual(afterHook.getCall(0).args[0].invocationId.length, 25);
   t.deepEqual(afterHook.getCall(1).args[0].invocationId.length, 25);

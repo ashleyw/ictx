@@ -38,7 +38,7 @@ export function ContextMiddlewareBuilder<Ctx extends ContextObject>({
 
     let { invocationId, userId } = initialValues;
 
-    return namespace.runPromise(async () => {
+    return namespace.runAndReturn(async () => {
       invocationId = pluckInvocationId({ req, res, initialValue: invocationId });
       userId = pluckCurrentUserId({ req, initialValue: userId });
 
