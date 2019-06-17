@@ -1,6 +1,6 @@
 {
   "name": "ictx",
-  "version": "0.0.1",
+  "version": "0.1.8",
   "description": "Invocation Context. Globally maintain context throughout a request lifecycle.",
   "keywords": ["context", "current-user", "invocation-id", "request-id", "shared", "threading"],
   "repository": {
