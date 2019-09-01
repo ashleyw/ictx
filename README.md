@@ -1,7 +1,7 @@
 # ictx (Invocation Context)
 
 [![npm version](https://badge.fury.io/js/ictx.svg)](https://badge.fury.io/js/ictx)
-[![Actions Status](https://github.com/ashleyw/ictx/workflows/Node%20CI/badge.svg)](https://github.com/ashleyw/ictx/actions)
+[![Actions Status](https://github.com/ashleyw/ictx/workflows/Test%20Suite/badge.svg)](https://github.com/ashleyw/ictx/actions)
 
 Globally maintains context throughout a invocation/request lifecycle, using [cls-hooked](https://npmjs.com/package/@ashleyw/cls-hooked) under the hood.
 
